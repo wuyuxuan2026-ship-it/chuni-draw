@@ -1,6 +1,29 @@
 'use strict';
 (() => {
   const $ = id => document.getElementById(id);
+  const fullscreenButton = $('screen-fullscreen');
+  const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const syncFullscreen = () => {
+    fullscreenButton.textContent=isFullscreen()?'⛶ 退出全屏':'⛶ 全屏';
+    fullscreenButton.setAttribute('aria-pressed',String(isFullscreen()));
+  };
+  fullscreenButton.addEventListener('click',async()=>{
+    try {
+      if(isFullscreen()) {
+        const exit=document.exitFullscreen || document.webkitExitFullscreen;
+        await exit.call(document);
+      } else {
+        const enter=document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+        if(!enter) throw new Error('unsupported');
+        await enter.call(document.documentElement);
+      }
+      syncFullscreen();
+    } catch {
+      $('announcement').textContent='当前浏览器无法进入全屏，请使用浏览器的全屏功能。';
+    }
+  });
+  document.addEventListener('fullscreenchange',syncFullscreen);
+  document.addEventListener('webkitfullscreenchange',syncFullscreen);
   const library = window.CHUNI_LIBRARY;
   const colors = {BASIC:'#75d58b',ADVANCED:'#ffb85a',EXPERT:'#ff8f94',MASTER:'#c895ff',ULTIMA:'#ff7676',ALL:'#ffd34e'};
   const state = {difficulties:new Set(['MASTER']),levels:new Set(['13']),pool:[],busy:false};
