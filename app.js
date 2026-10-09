@@ -96,7 +96,7 @@
     const offset=index=>windowEl.clientWidth/2-cards[index].offsetLeft-cards[index].offsetWidth/2;
     track.style.transform='translateX('+offset(startIndex)+'px)';
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const animation=track.animate([{transform:'translateX('+offset(startIndex)+'px)'},{transform:'translateX('+offset(winnerIndex)+'px)'}],{duration:4600,easing:'cubic-bezier(.08,.65,.12,1)',fill:'forwards'});
+      const animation=track.animate([{transform:'translateX('+offset(startIndex)+'px)'},{transform:'translateX('+offset(winnerIndex)+'px)'}],{duration:6500,easing:'cubic-bezier(.08,.65,.12,1)',fill:'forwards'});
       await animation.finished;animation.cancel();
     }
     track.style.transform='translateX('+offset(winnerIndex)+'px)';cards[winnerIndex].classList.add('winner');
