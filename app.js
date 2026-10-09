@@ -41,7 +41,7 @@
     do { crypto.getRandomValues(value); } while (value[0] >= limit);
     return value[0] % length;
   }
-  function showSong(song, chart, drawn) {
+  async function showSong(song, chart, drawn, origin) {
     $('result-stage').classList.remove('awaiting');
     $('mystery-cover').hidden=true;
     $('result-cover').hidden=false;
@@ -64,6 +64,23 @@
       $('song-dialog').style.setProperty('--difficulty',colors[chart[0]]);
       $('fullscreen-cover').hidden=false;$('fullscreen-cover').alt=song.title+' 的歌曲封面';$('fullscreen-cover').src=song.cover;
       document.body.classList.add('result-open');$('song-dialog').showModal();
+      if(origin && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const dialog=$('song-dialog'),jacket=dialog.querySelector('.fullscreen-jacket');
+        const target=jacket.getBoundingClientRect();
+        const dx=origin.left+origin.width/2-target.left-target.width/2;
+        const dy=origin.top+origin.height/2-target.top-target.height/2;
+        const animations=[
+          dialog.animate([{background:'transparent'},{background:getComputedStyle(dialog).background}],{duration:750,easing:'ease-out'}),
+          jacket.animate([{transform:'translate('+dx+'px,'+dy+'px) scale('+(origin.width/target.width)+')'},{transform:'translate(0,0) scale(1)'}],{duration:750,easing:'cubic-bezier(.22,1,.36,1)'})
+        ];
+        for(const element of dialog.querySelector('.fullscreen-result').children) {
+          if(element!==jacket)animations.push(element.animate([{opacity:0,transform:'translateY(16px)'},{opacity:1,transform:'translateY(0)'}],{duration:450,delay:300,fill:'both',easing:'ease-out'}));
+        }
+        const cancel=()=>animations.forEach(animation=>animation.cancel());
+        dialog.addEventListener('close',cancel,{once:true});
+        await Promise.allSettled(animations.map(animation=>animation.finished));
+        dialog.removeEventListener('close',cancel);cancel();
+      }
     }
     if(drawn) $('announcement').textContent='抽到 '+song.title+'，'+chart[0]+'，等级 '+chart[1]+'。';
   }
@@ -132,6 +149,7 @@
     }
     track.style.transform='translateX('+offset(winnerIndex)+'px)';cards[winnerIndex].classList.add('winner');
     reel.classList.add('settled');$('reel-hint').textContent='已锁定 · '+song.title;
+    return cards[winnerIndex].querySelector('.reel-cover').getBoundingClientRect();
   }
   async function draw() {
     if(state.busy) throw new Error('正在抽取，请稍候。');
@@ -141,7 +159,7 @@
     for(const input of $('levels').querySelectorAll('input')) input.disabled=true;
     $('draw-label').textContent='正在抽取…';$('result-status').textContent='抽取中';
     const song=state.pool[randomIndex(state.pool.length)];const charts=matches(song),chart=charts[randomIndex(charts.length)];
-    try { await spin(song,chart);showSong(song,chart,true); }
+    try { const origin=await spin(song,chart);await showSong(song,chart,true,origin); }
     finally { state.busy=false;for(const input of $('difficulties').querySelectorAll('input'))input.disabled=false;$('draw').disabled=!state.pool.length;$('draw-label').textContent='再抽一首';
       for(const input of $('levels').querySelectorAll('input'))input.disabled=!available(input.value);
     }
