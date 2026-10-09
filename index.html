@@ -22,13 +22,14 @@
         <div class="section-head"><h2 id="filter-heading">设定你的挑战</h2><span class="small-code">01 / SELECT</span></div>
         <label class="field-label" for="difficulty">谱面难度</label>
         <div class="select-wrap"><span class="difficulty-mark" id="difficulty-mark" aria-hidden="true"></span><select id="difficulty"><option value="ALL">不限谱面</option value="BASIC">BASIC</option><option value="ADVANCED">ADVANCED</option><option value="EXPERT">EXPERT</option><option value="MASTER" selected>MASTER</option><option value="ULTIMA">ULTIMA</option></select></div>
-        <fieldset class="level-fieldset"><legend>歌曲等级 <span>单选</span></legend><div id="levels" class="levels"></div></fieldset>
+        <fieldset class="level-fieldset"><legend>歌曲等级 <span id="level-selection">可多选</span></legend><div id="levels" class="levels"></div></fieldset>
         <div class="pool-info"><span>当前可抽曲目</span><strong><span id="pool-count">—</span><small> 首</small></strong></div>
         <button id="draw" class="draw-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3c4 0 7 10 11 10h4M18 14l3 3-3 3M3 17h3c1.4 0 2.8-1.2 4-3M14 10c1.2-1.8 2-3 3-3h4M18 4l3 3-3 3"/></svg><span id="draw-label">随机抽一首</span></button>
-        <p class="control-note">每次抽取机会均等，允许重复抽到同一首。<br>「+」等级单独筛选。</p>
+        <p class="control-note">可同时选择多个等级，从合并曲池中随机抽取。<br>每首歌曲机会均等，「+」等级单独筛选。</p>
       </section>
       <section class="result-panel" aria-labelledby="result-heading">
         <div class="result-top"><h2 id="result-heading">你的下一首</h2><span id="result-status" class="result-status">等待抽取</span></div>
+        <div id="reel" class="reel" hidden><div class="reel-caption"><span>TRACK ROULETTE / 滚动抽歌</span><span id="reel-hint">等待指针落定…</span></div><div id="reel-window" class="reel-window" aria-hidden="true"><div class="reel-pointer"></div><div id="reel-track" class="reel-track"></div></div></div>
         <div class="result-stage awaiting" id="result-stage">
           <div class="track-lines" aria-hidden="true"></div>
           <div class="jacket-wrap"><span class="jacket-corner corner-tl" aria-hidden="true"></span><span class="jacket-corner corner-br" aria-hidden="true"></span><div class="jacket"><div id="mystery-cover" class="mystery-cover" aria-label="尚未抽取歌曲">?</div><img id="result-cover" alt="" decoding="async" hidden><div id="cover-fallback" class="cover-fallback" hidden><span>♪</span><small>封面暂不可用</small></div></div><span class="cover-label" id="cover-label">曲目预览</span></div>
