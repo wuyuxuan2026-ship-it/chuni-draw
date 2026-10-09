@@ -3,13 +3,15 @@
   const $ = id => document.getElementById(id);
   const library = window.CHUNI_LIBRARY;
   const colors = {BASIC:'#75d58b',ADVANCED:'#ffb85a',EXPERT:'#ff8f94',MASTER:'#c895ff',ULTIMA:'#ff7676',ALL:'#ffd34e'};
-  const state = {difficulty:'MASTER',levels:new Set(['13']),pool:[],busy:false};
+  const state = {difficulties:new Set(['MASTER']),levels:new Set(['13']),pool:[],busy:false};
   const levelValue = level => Number(level.replace('+','')) + (level.endsWith('+') ? 0.5 : 0);
   const levels = [...new Set(library.songs.flatMap(song => Object.values(song.charts)))].sort((a,b)=>levelValue(a)-levelValue(b));
   const selectedLevels = () => levels.filter(level=>state.levels.has(level));
   const levelText = () => selectedLevels().join(' / ');
-  const available = value => library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>(state.difficulty==='ALL'||difficulty===state.difficulty)&&level===value));
-  function matches(song) { return Object.entries(song.charts).filter(([difficulty,level]) => (state.difficulty==='ALL' || difficulty===state.difficulty) && state.levels.has(level)); }
+  const difficultyText = () => [...state.difficulties].join(' + ');
+  const accepts = difficulty => state.difficulties.has(difficulty);
+  const available = value => library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>accepts(difficulty)&&level===value));
+  function matches(song) { return Object.entries(song.charts).filter(([difficulty,level]) => accepts(difficulty) && state.levels.has(level)); }
   function randomIndex(length) {
     if (!Number.isInteger(length) || length < 1) throw new Error('曲池为空，无法抽取。');
     const value = new Uint32Array(1), limit = Math.floor(4294967296 / length) * length;
@@ -34,15 +36,21 @@
     $('result-status').textContent=drawn?'抽取完成':'等待抽取';
     $('result-status').classList.toggle('drawn',drawn);
     $('result-note').textContent=drawn?'就是这首了。准备好迎接下一次挑战。':'准备好了吗？点击抽歌按钮开始。';
+    if(drawn) {
+      for(const field of ['title','artist','category','difficulty','level']) $('fullscreen-'+field).textContent=$('result-'+field).textContent;
+      $('song-dialog').style.setProperty('--difficulty',colors[chart[0]]);
+      $('fullscreen-cover').hidden=false;$('fullscreen-cover').alt=song.title+' 的歌曲封面';$('fullscreen-cover').src=song.cover;
+      document.body.classList.add('result-open');$('song-dialog').showModal();
+    }
     if(drawn) $('announcement').textContent='抽到 '+song.title+'，'+chart[0]+'，等级 '+chart[1]+'。';
   }
   function refresh() {
     state.pool=library.songs.filter(song=>matches(song).length);
-    document.documentElement.style.setProperty('--difficulty',colors[state.difficulty]);
+    document.documentElement.style.setProperty('--difficulty',state.difficulties.size===1?colors[[...state.difficulties][0]]:colors.ALL);
     $('pool-count').textContent=state.pool.length;
     $('draw').disabled=!state.pool.length;
     $('level-selection').textContent=state.levels.size?'已选 '+state.levels.size+' 个':'可多选';
-    $('selection-summary').textContent=(state.difficulty==='ALL'?'ALL CHARTS':state.difficulty)+' / '+(state.levels.size?'Lv. '+levelText():'未选择等级');
+    $('selection-summary').textContent=(difficultyText()||'未选择难度')+' / '+(state.levels.size?'Lv. '+levelText():'未选择等级');
     $('candidate-label').textContent=(state.levels.size?'Lv. '+levelText():'未选择等级')+' · '+state.pool.length+' 首';
     $('reel').hidden=true;$('reel-track').replaceChildren();
     $('candidate-list').replaceChildren();
@@ -56,7 +64,7 @@
       info.append(title,label);item.append(img,info);$('candidate-list').append(item);
     }
     for(const input of $('levels').querySelectorAll('input')) {
-      input.disabled=!library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>(state.difficulty==='ALL'||difficulty===state.difficulty)&&level===input.value));
+      input.disabled=!library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>accepts(difficulty)&&level===input.value));
       input.parentElement.hidden=input.disabled;
       input.checked=state.levels.has(input.value);
     }
@@ -104,13 +112,14 @@
   }
   async function draw() {
     if(state.busy) throw new Error('正在抽取，请稍候。');
+    if($('song-dialog').open) throw new Error('请先确认当前歌曲。');
     if(!state.pool.length) throw new Error('当前等级没有曲目。');
-    state.busy=true;$('draw').disabled=true;$('difficulty').disabled=true;
+    state.busy=true;$('draw').disabled=true;for(const input of $('difficulties').querySelectorAll('input'))input.disabled=true;
     for(const input of $('levels').querySelectorAll('input')) input.disabled=true;
     $('draw-label').textContent='正在抽取…';$('result-status').textContent='抽取中';
     const song=state.pool[randomIndex(state.pool.length)];const charts=matches(song),chart=charts[randomIndex(charts.length)];
     try { await spin(song,chart);showSong(song,chart,true); }
-    finally { state.busy=false;$('difficulty').disabled=false;$('draw').disabled=!state.pool.length;$('draw-label').textContent='再抽一首';
+    finally { state.busy=false;for(const input of $('difficulties').querySelectorAll('input'))input.disabled=false;$('draw').disabled=!state.pool.length;$('draw-label').textContent='再抽一首';
       for(const input of $('levels').querySelectorAll('input'))input.disabled=!available(input.value);
     }
     return {title:song.title,artist:song.artist,cover:song.cover,difficulty:chart[0],level:chart[1]};
@@ -123,12 +132,22 @@
     label.append(input,text);$('levels').append(label);
   }
   $('total-count').textContent=library.songs.length.toLocaleString('zh-CN');
-  $('difficulty').addEventListener('change',()=>{
-    const hadSelection=state.levels.size>0;state.difficulty=$('difficulty').value;
-    state.levels=new Set(selectedLevels().filter(available));
-    if(hadSelection&&!state.levels.size)state.levels.add(levels.find(available));
-    $('draw-label').textContent='随机抽一首';refresh();
-  });
+  for(const difficulty of Object.keys(colors).filter(value=>value!=='ALL')) {
+    const label=document.createElement('label');label.className='difficulty-option';label.style.setProperty('--chart-color',colors[difficulty]);
+    const input=document.createElement('input');input.type='checkbox';input.value=difficulty;input.checked=state.difficulties.has(difficulty);input.setAttribute('aria-label',difficulty);
+    const text=document.createElement('span');text.textContent=difficulty;
+    input.addEventListener('change',()=>{
+      const hadSelection=state.levels.size>0;
+      if(input.checked)state.difficulties.add(difficulty);else state.difficulties.delete(difficulty);
+      state.levels=new Set(selectedLevels().filter(available));
+      const first=levels.find(available);if(hadSelection&&!state.levels.size&&first)state.levels.add(first);
+      $('draw-label').textContent='随机抽一首';refresh();
+    });
+    label.append(input,text);$('difficulties').append(label);
+  }
+  $('confirm-song').addEventListener('click',()=>$('song-dialog').close());
+  $('song-dialog').addEventListener('close',()=>{document.body.classList.remove('result-open');$('draw-label').textContent='随机抽一首';refresh();$('draw').focus();});
+  $('fullscreen-cover').addEventListener('error',()=>{$('fullscreen-cover').hidden=true;});
   $('draw').addEventListener('click',()=>draw().catch(error=>{$('announcement').textContent=error.message;}));
   $('result-cover').addEventListener('error',()=>{if(!$('result-cover').hidden) $('cover-fallback').hidden=false;});
   new ResizeObserver(()=>{
@@ -139,12 +158,14 @@
   if(document.modelContext?.registerTool) {
     const lifecycle=new AbortController();
     try {
-      Promise.resolve(document.modelContext.registerTool({name:'draw_chunithm_song',title:'按多个等级随机抽歌',description:'选择谱面难度与一个或多个精确等级，通过横向滚动抽取一首歌曲并展示结果。',inputSchema:{type:'object',properties:{difficulty:{type:'string',enum:Object.keys(colors)},levels:{type:'array',items:{type:'string',enum:levels},minItems:1,uniqueItems:true}},required:['difficulty','levels'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},async execute(input){
-        if(!input||!Object.keys(colors).includes(input.difficulty)||!Array.isArray(input.levels)||!input.levels.length||input.levels.some(level=>!levels.includes(level))||new Set(input.levels).size!==input.levels.length||Object.keys(input).some(key=>!['difficulty','levels'].includes(key))) throw new Error('谱面难度或等级无效。');
-        if(state.busy) throw new Error('正在抽取，请稍候。');
-        const valid=input.levels.every(value=>library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>(input.difficulty==='ALL'||input.difficulty===difficulty)&&level===value)));
+      Promise.resolve(document.modelContext.registerTool({name:'draw_chunithm_song',title:'按多个难度与等级随机抽歌',description:'选择一个或多个谱面难度及等级，滚动抽歌后全屏展示结果，点击确定返回。',inputSchema:{type:'object',properties:{difficulties:{type:'array',items:{type:'string',enum:Object.keys(colors).filter(value=>value!=='ALL')},minItems:1,uniqueItems:true},levels:{type:'array',items:{type:'string',enum:levels},minItems:1,uniqueItems:true}},required:['difficulties','levels'],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},async execute(input){
+        if(!input||!Array.isArray(input.difficulties)||!input.difficulties.length||input.difficulties.some(value=>value==='ALL'||!Object.hasOwn(colors,value))||new Set(input.difficulties).size!==input.difficulties.length||!Array.isArray(input.levels)||!input.levels.length||input.levels.some(level=>!levels.includes(level))||new Set(input.levels).size!==input.levels.length||Object.keys(input).some(key=>!['difficulties','levels'].includes(key))) throw new Error('谱面难度或等级无效。');
+        if(state.busy||$('song-dialog').open) throw new Error('请等待抽取结束并确认当前歌曲。');
+        const valid=input.levels.every(value=>library.songs.some(song=>Object.entries(song.charts).some(([difficulty,level])=>input.difficulties.includes(difficulty)&&level===value)));
         if(!valid) throw new Error('该难度与等级没有匹配曲目。');
-        state.difficulty=input.difficulty;state.levels=new Set(input.levels);$('difficulty').value=input.difficulty;refresh();return draw();
+        state.difficulties=new Set(input.difficulties);state.levels=new Set(input.levels);
+        for(const checkbox of $('difficulties').querySelectorAll('input'))checkbox.checked=state.difficulties.has(checkbox.value);
+        refresh();return draw();
       }},{signal:lifecycle.signal})).catch(()=>{});
       window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
     } catch { /* Browsers without WebMCP still support the complete visible interface. */ }
